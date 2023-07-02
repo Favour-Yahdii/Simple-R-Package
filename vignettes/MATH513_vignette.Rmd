@@ -1,0 +1,323 @@
+---
+title: "MATH513_vignette"
+output: rmarkdown::html_vignette
+fontsize: 12pt
+vignette: >
+  %\VignetteIndexEntry{MATH513_vignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+# Joe Biden's 2020 Speeches Dataset
+
+The Joe Biden's Speeches Data set contains 128 observations of textual data from portions of six(6) speeches given by Joe Biden in the months of August, September and November of 2020 spread across five (5) columns namely; speech, part, location, event and date. The Data set records the text of the speech, the part of the speech that text comes from, the location of the United States of America where the speech was given, the National event during which the speech was given as well as the specific date on which the speech was given. These speeches were primarily given before the United States Presidential elections with just one (1), the Thanksgiving speech, occurring in November after Joe Biden had become President. The columns in this Data set contain categorical data except for the date column which contains numerical data of type 'Date'. The longest speech was the Racial Equity Discussion given in Charlotte on the 23rd of September, 2020, while the shortest was the Thanksgiving speech given in Wilmington on Thanksgiving day, 25th November, 2020.
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+  knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+suppressPackageStartupMessages(library(MATH513))
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(tidytext))
+
+library(MATH513)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(tidytext)
+```
+
+# Change in Word Frequency over Time
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap='Change in Word Frequency over Time'}
+plot_biden_word_proportion <- function(words, datafile) {
+
+
+  # create new variable denoting the speech part number
+  new <- datafile %>%
+    mutate(speechnumber = datafile$part)
+
+  # create tokens variable that unnests tokens and removes stop words
+  tokens <- new %>% unnest_tokens(word, speech) %>%
+    anti_join(tidytext::stop_words)
+
+  # create variable that groups words based on speech number,creates a value 'p' and filters for the desired word
+  tokens_group <- tokens %>%
+    count(speechnumber, word, date) %>% group_by(speechnumber) %>%
+    mutate(p = n / sum(n)) %>%
+    filter(word%in%words)
+
+  #plot the words
+  word_plot <- ggplot(tokens_group, aes(x = date, y = p, color=word)) +
+    geom_point() +
+    geom_smooth(method="loess",se=TRUE) +
+    labs(y = "Percentage of words") +
+    labs(x = "Speech Date") +
+    labs(title = "Change of Word Frequency over time in Joe Biden's 2020 Speeches Dataset") +
+    theme(axis.text = element_text(size = 10, color = "black"), 
+        axis.title = element_text(size = 10, color = "black"),
+        title = element_text(size = 10)) +
+    facet_wrap(~word, scales='free')+
+    theme(legend.position = "none") +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    geom_smooth(method='lm', col='black', se=FALSE, linewidth=0.9)
+  word_plot
+
+}
+plot_biden_word_proportion(words=c('schools','justice','president','businesses','country','people'),datafile = bidens_speeches_data)
+```
+
+The graph above depicts the transformations in the percentage use of words in each of the six (6) speeches being considered. The graph plots the words; businesses, country, justice, people, president and schools with speech date on the x-axis and the percentage of word use for the particular word on the y-axis. The graph employs the use of 'facet wrap' from the _ggplot2_ package to enable a side-by-side display of the words being visualized. The curved line present in the plots is a __loess__ regression line, also known as the local regression line. It fits the data points more accurately than a regular simple linear regression line, although this is also modeled in the plot. 
+
+Counts and frequencies of data can be transformed into proportions. For instance, by dividing the word's frequency by the total amount of words in the speeches, it is possible to determine how frequently the word __Businesses__ appears in Joe Biden's 2020 speeches. 
+
+The percentage of the term __Businesses__ in Joe Biden's speeches rose by over 10% in September 2020, indicating a higher frequency of use there than in August or November. This may be seen in the graph, which indicates a reduction for the months of October and November (during which there were no speaker events). As speech events progressed, the use of the word "business" grew less frequent, as evidenced by the inverse relationship between the frequency of the word and the speech events. This could probably mean that Joe Biden did not attend events where he had to talk about businesses or use the word 'business' as the election drew near in November.
+
+The word __Country__ had two peaks, a sharp increase between end of August and early September another one towards the end of September before having a drastic decline in November as the time of the election was approaching. 
+
+
+The word __Justice__ was sparsely used at some point in September but barely used in October and November. This probably means that Joe Biden did not need to talk about justice at the events he attended towards the election period.
+
+
+The word __People__ was scantly used towards the end of September and was not used in October and November. It could most likely be that He did not attend many events where he needed to talk about people. 
+
+
+The word __President__ was frequently used in September, had a slight dip in frequency towards the end of September and later increased from October through to the beginning of November. 
+
+The word __Schools__ was only used in September and was not used at any point in October and November. This could probably mean that Joe Biden did not attend events that had to do with education as the election drew closer in November. 
+
+These plots lead to the conclusion that Joe Biden's speeches regularly changed and evolved in terms of word choice and frequency. This was primarily due to the time of year, namely how close the election was at the time the speech was given, as well as the occasion.
+
+# TF-IDF index
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap='TF-IDF Index for the top 10 words in each Speech Event'}
+tf_idf <- function(datafile){
+    df_tokenized <- datafile %>%
+    mutate(speechnumber = datafile$part) %>% # create new variable denoting the speech part number
+    unnest_tokens(word, speech)
+
+    df_token_cleaned <- df_tokenized %>%
+    anti_join(tidytext::stop_words)
+
+    df_final <- df_token_cleaned %>%  count(location, word, event) %>%
+    bind_tf_idf(word, location, n) %>% group_by(location) %>% arrange(desc(tf_idf), .by_group = TRUE)
+
+    #getting the top 10 tf_idf words for each event
+    top_words <- df_final %>% slice(1:10)
+    ggplot(top_words,
+           aes(x = reorder(word, -tf_idf),
+           y=tf_idf, fill=event)) +
+      geom_col() +
+      coord_flip() +
+      labs(x='Top Words at each event', y = "tf_idf index", title="Highest tf-idf Word Frequency for Joe Biden's Speeches in 2020") +
+      theme(axis.text = element_text(size = 8, color = "black"), 
+        axis.title = element_text(size = 10, color = "black"),
+        title = element_text(size = 10)) +
+      facet_wrap(~ event, scales='free', strip.position = 'left') +
+      theme(legend.position = "none")
+}
+tf_idf(bidens_speeches_data)
+```
+
+The Inverse Document Frequency of a phrase reveals how important it is, whereas the Term Frequency tells how frequently it appears in a document. By multiplying these two scores, the TF-IDF score is produced (Onely,2023). 
+
+
+The __TF-IDF__ score is a metric used to evaluate the importance of words in textual data and document sets. This indicates a higher value of importance being attached to words with higher tf-idf scores than other words.In this case, this metric has been used to compute the importance of words used in Joe Biden's 2020 speeches both before and after the 202 United States presidential elections. 
+
+
+During the Democratic National Convention, the words with the highest TF-IDF scores were 'purpose', 'shes', and 'winning' all with TF-IDF values of 0.007.  During his Racial Equity discussion, the words with the highest TF-IDF score were 'money', 'department' and 'employees'. This suggests that  words with higher scores were deemed highly important or relevant in the context of this speech. 
+
+
+At the SCOTUS event, the words in Joe Biden's speech with the highest TF-IDF score were 'aca', 'supreme' and 'court'. This suggests that these words were considered more important or relevant in the context of the speech given at this particular event. 
+
+
+During the Thanksgiving holiday event, the top three words with the highest TF-IDF score were “thanksgiving”, 'Joe' and 'biden'. This suggests that these words were considered more important or relevant in the context of the speech given at this particular event.
+
+
+During the US conference of Mayors, the words with the highest TF-IDF score were 'Mayors', 'leading' and 'straight'. This suggests that these words were considered more important or relevant in the context of the speech given at this particular event. 
+
+
+During his Whistle stop tour, the words with the highest TF-IDF score were 'tiffany' with a score of 0.015,'husband' and 'avenue'. This suggests that these words were considered more important or relevant in the context of the speech given at this particular event. 
+
+It can be concluded from this graph that the term frequency of a word in a speech or text document is relative to the context in which the document was written or the speech given. For example, it is not surprising that the word __Thanksgiving__ had the highest term frequency during Joe Biden's Thanksgiving speech and not in his Racial Equity Discussion speech.
+
+# Zipf's Law
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Joe Biden's Speeches depiction of Zipf's Law"}
+zipf <- function(datafile){
+  options(scipen = 10)
+  df_tokenized <- datafile %>%
+    mutate(speechnumber = datafile$part) %>% # create new variable denoting the speech part number
+    unnest_tokens(word, speech)
+  
+  word_group <- df_tokenized %>% group_by(location) %>% count(word, sort=TRUE) %>% 
+    bind_tf_idf(word, location, n) %>% 
+    arrange(desc(tf))
+  #3. tf is done using bind_tf_idf
+  #4. rank is row number after sorting in decreasing tf and grouping by location,
+  word_group <- word_group %>% mutate(rank = row_number())
+  #plot different colours for each location.
+  ggplot(word_group,
+         aes(x = rank, y=tf, colour=location)) +
+    geom_line() +
+    scale_x_log10('Word Rank') + # logarithmic scale on the x-axis
+    scale_y_log10('Term Frequency (tf)') + 
+    labs(title="Zipf's Law for Joe Biden's Speeches in 2020") +
+    theme(axis.text = element_text(size = 10, color = "black"), 
+        axis.title = element_text(size = 10, color = "black"),
+        title = element_text(size = 10))
+  
+}
+zipf(bidens_speeches_data)
+
+```
+
+Zipf's law also known as the principle of least effort is a statistical principle that describes the observed distribution of data, including word frequencies in natural language texts. According to Zipf's law, given a large sample of data, the frequency of an item (such as a word in a text) is inversely proportional to its word rank in the frequency table. In other words, the second most common item will occur half as often as the most common item, the third most common item will occur a third as often as the most common item, and so on. Based on Zipf’s law, the higher the frequency of a word in a given text, the lower its ranking. The formula for Zipf's law is often given as:
+
+$$f(r) = c \cdot r^{-s}$$
+
+where: 
+
+__f(r)__ is the frequency of the word at rank r,
+
+__c__ is a constant, and 
+
+__s__ is the scaling exponent.  
+
+The scaling exponent is often close to 1, although it can vary depending on the dataset. This formula is a power-law distribution, which means that the relationship between the frequency and rank is a power function.
+ 
+Statistically, Zipf's law is often represented using a probability density function (PDF) or a cumulative distribution function (CDF). These functions give a way to describe the probability of different outcomes within a Data set that follows Zipf's law.
+
+The probability density function (PDF) for Zipf's law is often given as:
+
+$$f(r; s) = \frac{1}{z(s)} \frac{1}{r^s}$$
+where:
+
+__f(r)__ is the probability density function for the rank r, 
+
+__s__ is the scaling exponent,
+
+and __z(s)__ is the normalization constant. 
+
+The normalization constant is determined by the equation:  
+$$z(s) = \sum_{r=1}^{\infty} \frac{1}{r^s}$$
+This equation says that the probability of a given rank r is inversely proportional to r raised to the power of s. The parameter s is known as the scaling exponent and it characterizes the specific shape of the distribution. This is the standard representation of Zipf's Law using statistical notations.
+
+Another way to represent Zipf's law is by using the cumulative distribution function (CDF). The CDF for Zipf's law is often given as:
+
+$$F(r; s) = \frac{1}{z(s)} \sum_{k=1}^{r} \frac{1}{k^s}$$
+Where:
+
+__F(r)__ is the cumulative distribution function for the rank r, 
+
+__s__ is the scaling exponent, 
+
+and __z(s)__ is the normalization constant.
+
+This equation gives the cumulative probability that a word has a rank less than or equal to r.
+
+
+With each line denoting one of the six (6) locations being taken into consideration, the graph above shows the word rank of a word in relation to other words on the x-axis and the term frequency of the words from each of the events in the data set on the y-axis. The graph illustrates the link between rank and frequency and provides evidence for Zipf's law, which states that in any given document or corpus, the relationship between term frequency and word rank is inverse.
+
+# Zipf's Law with Regression Line  
+## Regression Analysis and Statistics
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Joe Biden's Speeches depiction of Zipf's Law with Regression Line"}
+zipf <- function(datafile){
+  df_tokenized <- datafile %>%
+    mutate(speechnumber = datafile$part) %>% # create new variable denoting the speech part number
+    unnest_tokens(word, speech)
+  
+  word_group <- df_tokenized %>% group_by(location) %>% count(word, sort=TRUE) %>% 
+    bind_tf_idf(word, location, n) %>% 
+    arrange(desc(tf))
+  #3. tf is done using bind_tf_idf
+  #4. rank is row number after sorting in decreasing tf and grouping by location,
+  word_group <- word_group %>% mutate(rank = row_number())
+  
+  #Fit the model
+  model <- lm(tf ~ rank, data = word_group)
+
+  # Summary of the model
+  print(summary(model))
+  
+  #plot different colours for each location.
+    ggplot(word_group,
+         aes(x = rank, y=tf, colour=location)) +
+    geom_line() +
+    geom_smooth(method='lm', col='black', se=FALSE, linewidth=0.5)+
+    scale_x_log10('Word Rank') + # logarithmic scale on the x-axis
+    scale_y_log10('Term Frequency (tf)') + 
+    labs(title="Zipf's Law for Joe Biden's Speeches in 2020") +
+    theme(axis.text = element_text(size = 10, color = "black"), 
+        axis.title = element_text(size = 10, color = "black"),
+        title = element_text(size = 10))
+
+}
+zipf(bidens_speeches_data)
+
+```
+
+A dependent variable and one or more independent variables can have a linear connection, and this relationship can be modelled statistically using linear regression. The coefficients of the independent variables, which describe the strength of the association between each independent variable and the dependent variable, are used to predict the dependent variable using a linear combination of the independent variables in a linear regression model.  
+
+The statistical law known as Zipf's law, which describes the frequency of words in a language, is one application of linear regression. According to Zipf's law, a word's frequency is inversely related to its position in the frequency table. The most common word will therefore appear twice as often as the second most common term, and so on.  
+
+We can use a word's rank as an independent variable and its frequency as a dependent variable to simulate Zipf's law using linear regression. Then, we can verify whether the data follows the anticipated pattern predicted by Zipf's rule by using the linear regression model to forecast the frequency of a word depending on its rank.
+
+The link between rank and frequency may not be entirely linear, which is one potential drawback of using linear regression to describe Zipf's law. In some circumstances, a nonlinear model like the loess regression model might be better suited to explain this relationship. However, evaluating hypotheses regarding the link between word frequency and rank and comprehending and interpreting linguistic data patterns might still benefit from the use of linear regression.
+
+In the case of the Joe Biden's 2020 Speeches Data set, we can predict the frequency of any given word in the Data set by inputting the word into the linear regression model and obtaining the y-hat value of word frequency for that word. 
+
+The linear regression model is as follows:
+
+$$\mathbf{y} = b_{0} + b_{1}\mathbf{x}$$
+where:  
+
+__y__ is the dependent variable,  
+__x__ is the independent variable,  
+__b0__ is the intercept,  
+and __b1__ is the slope.
+
+
+The specific linear regression model suited for the Joe Biden's Data set is outlined below:
+
+$$\mathbf{tf} = 0.0030583201 - 0.0000041609 \cdot \mathbf{rank}$$
+where:  
+
+__tf__ is the dependent variable,  
+__rank__ is the independent variable,  
+__0.0030583201__ is the intercept,  
+and __- 0.0000041609__ is the slope.
+
+
+The interpretation of the summary statistic as well as the resulting plot can be found below:
+
+The coefficients table shows that the estimated intercept is 0.003058, and the estimate for rank is -0.000004. The corresponding p-values indicate that both the intercept and rank are significantly related to tf, as indicated by the asterisks.  
+
+The residual standard error is 0.002948, and the multiple R-squared value is 0.1434, indicating that the model explains about 14% of the variance in tf.  
+
+The F-statistic and its associated p-value test the overall significance of the model. In this case, the p-value is very small, indicating that the model is significant.  
+
+
+
+## References
+
+De Marzo, G., Gabrielli, A., Zaccaria, A., & Pietronero, L. (2021). *Dynamical approach to Zipf's law*. Phys. Rev. Res., 3(1), 013084. https://doi.org/10.1103/PhysRevResearch.3.013084
+
+
+Goralewicz, B. (2022) *The TF_IDF Algorithm explained*. Available at: TF-IDF: An Explanation & Example | Onely (Accessed: 05/01/2022).
+
+
+Nordquist, R. (2019) *The Principle of Least Effort: Definition and Examples of Zipf's Law*. Available at: https://www.thoughtco.com/principle-of-least-effort-zipfs-law-1691104 (Accessed: 05/01/2022).
+
+ 

@@ -1,0 +1,27 @@
+Package: MATH513
+Type: Package
+Title: A package that Provides Graphical representations of Textual datasets
+Version: 0.1.0
+Author: 10784424, 10782401, 10782689, 10757306
+Maintainer: 10784424 <group3@postgrad.plymouth.ac.uk>
+Description: This package provides statistical plots using text from documents that provide visual  
+    representation of various phenomenon like zipf's law. 
+License: GPL-2
+Encoding: UTF-8
+LazyData: true
+Data: data/bidens_speeches_data.rda
+Imports: 
+    ggplot2,
+    tidyverse,
+    tidytext,
+    scales,
+    readr,
+    dplyr,
+    magrittr
+Suggests: 
+    knitr,
+    rmarkdown
+RoxygenNote: 7.2.1
+Depends: 
+    R (>= 2.10)
+VignetteBuilder: knitr
